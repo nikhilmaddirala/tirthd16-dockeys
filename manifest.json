@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "DocsKeys",
-    "description": "Vim-style keyboard shortcuts for Google Docs",
-    "version": "1.2.1",
+    "name": "DocsKeys Enhanced",
+    "description": "Vim-style keyboard shortcuts for Google Docs with toggle functionality",
+    "version": "1.3.0",
     "icons": {
         "32": "icons/32.png",
         "128": "icons/128.png"
@@ -10,6 +10,9 @@
     "action": {
         "default_popup": "index.html",
         "default_icon": "icons/32.png"
+    },
+    "background": {
+        "service_worker": "background.js"
     },
     "content_scripts": [
         {
@@ -30,5 +33,17 @@
                 "https://docs.google.com/*"
             ]
         }
+    ],
+    "commands": {
+        "toggle-extension": {
+            "suggested_key": {
+                "default": "Ctrl+Shift+V",
+                "mac": "Command+Shift+V"
+            },
+            "description": "Toggle DocsKeys on/off"
+        }
+    },
+    "permissions": [
+        "storage"
     ]
 }

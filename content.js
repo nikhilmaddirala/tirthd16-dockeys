@@ -1,16 +1,32 @@
 // Google Docs has moved from using editable HTML elements (textbox with contenteditable=true)
 // to custom implementation with its own editing surface since 2015. (https://drive.googleblog.com/2010/05/whats-different-about-new-google-docs.html)
-// This means that each keystroke is captured and then fed into layout engine which 
+// This means that each keystroke is captured and then fed into layout engine which
 // then draws the text, cursor, selection, headings etc on seperate iframe.
-// Such implementation deters any extensibility in terms of text manipulation because 
+// Such implementation deters any extensibility in terms of text manipulation because
 // there is no API to interact with Google Docs layout engine
 
 // Thus only way (in my understanding) to achieve vim motions would be to capture keystrokes
 // before sending to layout engine and interpret them into respective vim motion/command.
-// Then implement those motions by sending relevant keystrokes. Essentially doing a keystroke to keystroke remapping. 
+// Then implement those motions by sending relevant keystrokes. Essentially doing a keystroke to keystroke remapping.
 
-const iframe = document.getElementsByTagName('iframe')[0]   // https://stackoverflow.com/a/4388829
-iframe.contentDocument.addEventListener('keydown', eventHandler, true)
+// Extension state management
+let extensionEnabled = true;
+let iframe = null;
+
+// Initialize the extension
+function initializeExtension() {
+    iframe = document.getElementsByTagName('iframe')[0];   // https://stackoverflow.com/a/4388829
+    if (iframe && iframe.contentDocument) {
+        iframe.contentDocument.addEventListener('keydown', eventHandler, true);
+    }
+}
+
+// Clean up event listeners
+function cleanupExtension() {
+    if (iframe && iframe.contentDocument) {
+        iframe.contentDocument.removeEventListener('keydown', eventHandler, true);
+    }
+}
 
 const cursorTop = document.getElementsByClassName("kix-cursor-top")[0] // element to edit to show normal vs insert mode
 let mode = 'normal'
@@ -110,7 +126,7 @@ function switchModeToNormal() {
     mode = 'normal'
     updateModeIndicator(mode)
 
-    //caret indicating visual mode 
+    //caret indicating visual mode
     cursorTop.style.opacity = 1
     cursorTop.style.display = "block"
     cursorTop.style.backgroundColor = "black"
@@ -317,8 +333,8 @@ function eventHandler(e) {
     if (
         ["Shift","Meta","Control","Alt",""].includes(e.key)
     ) return
-        
-    
+
+
     if (e.ctrlKey && mode=='insert' && e.key=='o' ){
         e.preventDefault()
         e.stopImmediatePropagation()
@@ -371,7 +387,7 @@ function handleKeyEventNormal(key) {
         multipleMotion.times = Number(key)
         return
     }
-    
+
     switch (key) {
         case "h":
             sendKeyEvent("left")
@@ -466,7 +482,7 @@ function handleKeyEventNormal(key) {
     // Check if operation is occuring in temperory normal mode after ctrl-o
     if (tempnormal) {
         tempnormal = false
-        if (mode != 'visual' && mode != 'visualLine'){  // Switch back to insert 
+        if (mode != 'visual' && mode != 'visualLine'){  // Switch back to insert
             switchModeToInsert()                        // after operation
             }
     }
@@ -652,5 +668,47 @@ function activateTopLevelMenu(menuCaption) {
     simulateClick(button);
 }
 
-// Initiate to Normal Mode
-switchModeToNormal()
+// Message listener for background script communication
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type === 'TOGGLE_EXTENSION') {
+        if (request.enabled && !extensionEnabled) {
+            enableExtension();
+        } else if (!request.enabled && extensionEnabled) {
+            disableExtension();
+        }
+    }
+});
+
+// Function to enable the extension
+function enableExtension() {
+    extensionEnabled = true;
+    initializeExtension();
+    switchModeToNormal();
+    modeIndicator.style.display = 'block';
+}
+
+// Function to disable the extension
+function disableExtension() {
+    extensionEnabled = false;
+    cleanupExtension();
+    switchModeToInsert(); // Switch to insert mode when disabled
+    modeIndicator.style.display = 'none';
+}
+
+// Check initial extension state and initialize accordingly
+chrome.runtime.sendMessage({ type: 'GET_EXTENSION_STATE' }, (response) => {
+    if (response && response.enabled) {
+        enableExtension();
+    } else {
+        disableExtension();
+    }
+});
+
+// Also modify the eventHandler to check if extension is enabled
+const originalEventHandler = eventHandler;
+eventHandler = function(e) {
+    if (!extensionEnabled) {
+        return; // Don't handle events if extension is disabled
+    }
+    return originalEventHandler(e);
+};
